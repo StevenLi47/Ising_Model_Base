@@ -125,7 +125,10 @@ class Spins:
         '''
 
         temp_Jij = self.Jij[index]
-        temp_Jij[index] = 0
+        if type(index) is list:
+            temp_Jij[:, index] = 0
+        else:
+            temp_Jij[index] = 0
         return -2 * np.sum(temp_Jij * (self.spins * -self.spins[index].reshape((np.size(index), 1))))
 
     def hamiltonian(self):
@@ -597,8 +600,9 @@ class random_ising(Ising):
 
     def __init__(self, temp, Jij = cf.avg_Jij, spin_ar = None, directed = False, num_index = None):
         super().__init__(temp, Jij, spin_ar, directed)
+        self.regions = np.shape(Jij)[0]
         if num_index is None:
-            self.num_index = np.shape(Jij)[0]
+            self.num_index = self.regions
         else:
             self.num_index = num_index
 
@@ -606,7 +610,7 @@ class random_ising(Ising):
         return f'random Ising with num_index = {self.num_index}'
 
     def time_scale(self):
-        random_index = np.random.choice(cf.regions, size = self.num_index)
+        random_index = np.random.choice(self.regions, size = self.num_index)
         for i in random_index:
             dE = self.metropolis_step(i)
             if dE is not None:
