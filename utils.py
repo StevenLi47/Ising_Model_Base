@@ -47,59 +47,62 @@ def df_to_text(data, directory, file_name):
         file.write(data_string)
 
 
-def part_corr(time_series, lag=0):
-    num_neuron, steps = np.shape(time_series)
-    tasks = []
+def part_corr(time_series, ridge=1e-8):
+    """
+    Pairwise partial-correlation matrix conditioned on all other variables.
 
-    def pairwise_part_corr(args):
-        neuron_a, neuron_b, remaining_neurons = args
+    Parameters
+    ----------
+    time_series : ndarray, shape (num_neurons, num_timepoints)
+    ridge : float
+        Small diagonal regularization for numerical stability.
 
-        if lag != 0:
-            lag_adjust_floor = max(-lag, 0)
-            lag_adjust_ceil = min(steps - lag, steps)
-            neuron_a = neuron_a[lag_adjust_floor:lag_adjust_ceil]
-            neuron_b = neuron_b[lag_adjust_floor:lag_adjust_ceil]
-            remaining_neurons = remaining_neurons[:, lag_adjust_floor:lag_adjust_ceil]
+    Returns
+    -------
+    partial_corr : ndarray, shape (num_neurons, num_neurons)
+    """
 
-        covarariance = np.cov(np.vstack([neuron_a, neuron_b, remaining_neurons]))
-        covar_ab = covarariance[:2, :2]
-        covar_aC = covarariance[:2, 2:]
-        covar_Cb = covarariance[2:, :2]
-        covar_CC = covarariance[2:, 2:]
+    X = np.asarray(time_series, dtype=float)
 
-        try:
-            covar_CC_invert = np.linalg.pinv(covar_CC)
-            partial_covariance = covar_ab - covar_aC @ covar_CC_invert @ covar_Cb
-        except:
-            return 0
-        if partial_covariance[0, 0] <= 0 or partial_covariance[1, 1] <= 0:
-            return 0
+    if X.ndim != 2:
+        raise ValueError("time_series must have shape (num_neurons, num_timepoints).")
 
-        partial_corr = partial_covariance[0, 1] / np.sqrt(partial_covariance[0, 0] * partial_covariance[1, 1])
-        return partial_corr
+    num_neurons, num_steps = X.shape
 
-    for index_a in range(num_neuron):
-        for index_b in range(index_a + 1, num_neuron):
-            neuron_a = time_series[index_a]
-            neuron_b = time_series[index_b]
-            remaining_neurons = np.delete(time_series, (index_a, index_b), axis=0)
-            tasks.append((
-                neuron_a,
-                neuron_b,
-                remaining_neurons
-                ))
+    if num_steps < 2:
+        raise ValueError("At least two time points are required.")
 
-    with ThreadPoolExecutor(max_workers=8) as executor:
-        results = list(executor.map(pairwise_part_corr, tasks))
+    # Remove the mean from each neuron time series
+    X = X - X.mean(axis=1, keepdims=True)
 
-    corr_matrix = np.identity(num_neuron)
-    index = 0
-    for index_a in range(num_neuron):
-        for index_b in range(index_a + 1, num_neuron):
-            corr_matrix[index_a, index_b] = corr_matrix[index_b, index_a] = results[index]
-            index += 1
+    # Sample covariance matrix
+    covariance = (X @ X.T) / (num_steps - 1)
 
-    return corr_matrix
+    # Regularization helps when covariance is singular or nearly singular
+    scale = np.trace(covariance) / num_neurons
+    covariance += ridge * scale * np.eye(num_neurons)
+
+    # Precision matrix
+    precision = np.linalg.pinv(covariance)
+
+    diagonal = np.diag(precision)
+
+    # Guard against invalid / near-zero diagonal entries
+    if np.any(diagonal <= 0):
+        raise ValueError(
+            "Precision matrix has non-positive diagonal entries. "
+            "Increase ridge or remove constant time series."
+        )
+
+    partial_corr = -precision / np.sqrt(np.outer(diagonal, diagonal))
+
+    # The diagonal is defined as 1 for a correlation matrix
+    np.fill_diagonal(partial_corr, 1.0)
+
+    # Remove tiny numerical asymmetries
+    partial_corr = 0.5 * (partial_corr + partial_corr.T)
+
+    return partial_corr
 
 
 def normalize_array(array):
