@@ -104,10 +104,10 @@ class simulated_FC_vs_T_global:
             emp_FC3 = cf.FC_3p
             avg_FC = cf.avg_FCp
         else:
-            emp_FC1 = cf.FC_1
-            emp_FC2 = cf.FC_2
-            emp_FC3 = cf.FC_3
-            avg_FC = cf.avg_FC
+            emp_FC1 = abs(cf.FC_1)
+            emp_FC2 = abs(cf.FC_2)
+            emp_FC3 = abs(cf.FC_3)
+            avg_FC = abs(cf.avg_FC)
 
         if show:
             plt.ion()
@@ -115,7 +115,7 @@ class simulated_FC_vs_T_global:
             temp_ar = temp * (self.multiplier ** self.alpha)
             avg_temp = np.mean(temp_ar)
             beta = 1 / temp
-            ising = self.ising(temp_ar, Jij = self.Jij, spin_matrix = spin_array)
+            ising = self.ising(temp_ar, Jij = self.Jij, spin_ar = spin_array)
             ising.simulate(steps, thermalization)
             sim_FC = ising.generate_FC(partial)
             ising_data = I.get_data(ising, beta, temp, self.alpha, emp_FC=avg_FC, diag=diag)
@@ -246,9 +246,10 @@ class simulated_FC_vs_T_global:
 if __name__ == '__main__':
     steps = 2000
     thermalization = 1000
-    min_temp = 2
-    max_temp = 10
-    temp_step = 50
+    min_temp = 5
+    max_temp = 15
+    temp_step = 25
     alpha = 2.07
-    simulation = simulated_FC_vs_T_global(min_temp, max_temp, temp_step, alpha)
-    simulation.simulate(steps, thermalization)
+    simulation = simulated_FC_vs_T_global(min_temp, max_temp, temp_step, alpha, ising = I.Jij_sorted_ising)
+    simulation.simulate(steps, thermalization, partial = False, show = True)
+    simulation.graph_data(True)

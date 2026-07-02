@@ -10,7 +10,7 @@ import config as cf
 import pickle
 from abc import ABC, abstractmethod
 from matplotlib.colors import TwoSlopeNorm
-
+from copy import copy
 
 '''
 This file contains the class objects which define the Ising model simulation. 3 (base) classes are defined; one for
@@ -124,11 +124,9 @@ class Spins:
         :return: Change in system energy.
         '''
 
-        temp_Jij = self.Jij[index]
+        temp_Jij = self.Jij[index, :]
         if type(index) is list:
             temp_Jij[:, index] = 0
-        else:
-            temp_Jij[index] = 0
         return -2 * np.sum(temp_Jij * (self.spins * -self.spins[index].reshape((np.size(index), 1))))
 
     def hamiltonian(self):
@@ -139,9 +137,9 @@ class Spins:
         '''
 
         if not self.directed:
-            return np.sum(self.Jij * (self.spins * self.spins.reshape((np.size(self.spins), 1)))) / 2
+            return -np.sum(self.Jij * (self.spins * self.spins.reshape((np.size(self.spins), 1)))) / 2
         else:
-            return np.sum(self.Jij * (self.spins * self.spins.reshape((np.size(self.spins), 1))))
+            return -np.sum(self.Jij * (self.spins * self.spins.reshape((np.size(self.spins), 1))))
 
     def update(self, index, energy = None):
         '''
@@ -184,8 +182,6 @@ class Ising(ABC):
 
         self.temp = temp
         self.spin = Spins(Jij, spin_ar, directed)
-        self.energy_series = [self.spin.total_energy]
-        self.mag_series = [self.spin.magnetization()]
         self.timer = 0
 
     def metropolis_step(self, index, dE = None):
@@ -239,6 +235,11 @@ class Ising(ABC):
 
         self.steps = steps
         self.spin_series = np.zeros((self.spin.size, self.steps + 1))
+        self.spin_series[:, 0] = self.spin.spins
+        self.energy_series = np.zeros((self.steps + 1, 1))
+        self.energy_series[0] = self.spin.total_energy
+        self.mag_series = np.zeros((self.steps + 1, 1))
+        self.mag_series[0] = self.spin.magnetization()
 
         if thermalization is None:
             run_counter = 0
@@ -261,13 +262,12 @@ class Ising(ABC):
                 self.time_scale()
                 self.timer += time.time() - start
 
-        self.spin_series[:, 0] = self.spin.spins
         for i in range(self.steps):
             start = time.time()
             self.time_scale()
-            self.spin_series[:, i] = self.spin.spins
-            self.energy_series.append(self.spin.total_energy)
-            self.mag_series.append(self.spin.magnetization())
+            self.spin_series[:, i + 1] = self.spin.spins
+            self.energy_series[i + 1] = self.spin.total_energy
+            self.mag_series[i + 1] = self.spin.magnetization()
             self.timer += time.time() - start
 
     def generate_FC(self, partial = False):
@@ -288,7 +288,7 @@ class Ising(ABC):
         if not self.partial:
             self.functional_connectivity = np.nan_to_num(np.corrcoef(self.spin_series))
         else:
-            self.functional_connectivity = utils.part_corr(self.spin_series, lag = 0)
+            self.functional_connectivity = utils.part_corr(self.spin_series)
 
         return self.functional_connectivity
 
@@ -610,7 +610,7 @@ class random_ising(Ising):
         return f'random Ising with num_index = {self.num_index}'
 
     def time_scale(self):
-        random_index = np.random.choice(self.regions, size = self.num_index)
+        random_index = np.random.permutation(self.regions)[:self.num_index]
         for i in random_index:
             dE = self.metropolis_step(i)
             if dE is not None:
@@ -618,14 +618,14 @@ class random_ising(Ising):
 
 
 if __name__ == '__main__':
-    t_global = 8.15
-    alpha = 2.07
+    t_global = 8 #8.15
+    alpha = 0 #2.07
     temp = t_global * (cf.norm_ind_avg_Jij ** alpha)
     beta = 1 / np.mean(temp)
-    steps = 3000
+    steps = 2000
     Jij = cf.avg_Jij
 
-    simulation = Jij_sorted_ising(temp, Jij = Jij)
+    simulation = random_ising(temp, Jij = Jij)
     simulation.simulate(steps, 1000)
     simulation.generate_FC(True)
     plt.matshow(simulation.functional_connectivity)
