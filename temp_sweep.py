@@ -104,10 +104,10 @@ class simulated_FC_vs_T_global:
             emp_FC3 = cf.FC_3p
             avg_FC = cf.avg_FCp
         else:
-            emp_FC1 = abs(cf.FC_1)
-            emp_FC2 = abs(cf.FC_2)
-            emp_FC3 = abs(cf.FC_3)
-            avg_FC = abs(cf.avg_FC)
+            emp_FC1 = cf.FC_1
+            emp_FC2 = cf.FC_2
+            emp_FC3 = cf.FC_3
+            avg_FC = cf.avg_FC
 
         if show:
             plt.ion()
@@ -246,10 +246,10 @@ class simulated_FC_vs_T_global:
 if __name__ == '__main__':
     steps = 2000
     thermalization = 1000
-    min_temp = 5
-    max_temp = 15
-    temp_step = 25
-    alpha = 2.07
-    simulation = simulated_FC_vs_T_global(min_temp, max_temp, temp_step, alpha, ising = I.Jij_sorted_ising)
+    min_temp = 0.5
+    max_temp = 10.5
+    temp_step = 20
+    alpha = 0
+    simulation = simulated_FC_vs_T_global(min_temp, max_temp, temp_step, alpha, ising = I.random_ising)
     simulation.simulate(steps, thermalization, partial = False, show = True)
     simulation.graph_data(True)
